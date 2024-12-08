@@ -67,3 +67,20 @@ func TestDeprefixWithId(t *testing.T){
 	}
 }
 }
+func TestPrefixWithoutId(t *testing.T){
+    if DePrefixWithoutId("") != ""{
+        t.Error(fmt.Sprintf("DePrefixWithoutId(%s) is not: %s", "",""))
+    }
+    if DePrefixWithoutId("--") != "-"{
+        t.Error(fmt.Sprintf("DePrefixWithoutId(%s) is not: %s", "--","-"))
+    }
+    if DePrefixWithoutId("-p-") != "p-"{
+        t.Error(fmt.Sprintf("DePrefixWithoutId(%s) is not: %s", "-p-","p-"))
+    }
+    if DePrefixWithoutId("-") != ""{
+        t.Error(fmt.Sprintf("DePrefixWithoutId(%s) is not: %s", "-",""))
+    }
+    if DePrefixWithoutId("14-SCT-251-035/2019") != "SCT-251-035/2019"{
+        t.Error(fmt.Sprintf("DePrefixWithoutId(%s) is not: %s", "14-SCT-251-035/2019","SCT-251-035/2019"))
+    }
+}
