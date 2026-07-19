@@ -11,14 +11,15 @@ import (
 )
 
 const (
-	ArcFaceDim      = 512
-	BytesPerFloat32 = 4
-	ExpectedByteLen = ArcFaceDim * BytesPerFloat32 // 2048 bytes
+	// 1. Updated dimensions to match your MobileFaceNet model
+	MobileFaceNetDim = 128
+	BytesPerFloat32  = 4
+	ExpectedByteLen  = MobileFaceNetDim * BytesPerFloat32 // 512 bytes
 )
 
-// ValidateArcFaceEmbeddingB64 strictly validates an ArcFace base64 string.
+// ValidateMobileFaceNetEmbeddingB64 strictly validates a MobileFaceNet base64 string.
 // It checks base64 compliance, length, and optional L2 normalization.
-func ValidateArcFaceEmbeddingB64(b64Str string, checkNormalization bool) (bool, error) {
+func ValidateMobileFaceNetEmbeddingB64(b64Str string, checkNormalization bool) (bool, error) {
 	// 1. Strict base64 decoding
 	decodedBytes, err := base64.StdEncoding.Strict().DecodeString(b64Str)
 	if err != nil {
@@ -27,9 +28,9 @@ func ValidateArcFaceEmbeddingB64(b64Str string, checkNormalization bool) (bool, 
 		return false, err1
 	}
 
-	// 2. Exact size check for ArcFace (512 float32s = 2048 bytes)
+	// 2. Exact size check for MobileFaceNet (128 float32s = 512 bytes)
 	if len(decodedBytes) != ExpectedByteLen {
-		err1 := errors.New(errors.EAREmbeddingInvalidLength, pgerror.New("invalid byte length; ArcFace embeddings must be exactly 2048 bytes (512 float32s)"))
+		err1 := errors.New(errors.EAREmbeddingInvalidLength, pgerror.New("invalid byte length; MobileFaceNet embeddings must be exactly 512 bytes (128 float32s)"))
 		err1.Log()
 		return false, err1
 	}
@@ -62,7 +63,7 @@ func ValidateArcFaceEmbeddingB64(b64Str string, checkNormalization bool) (bool, 
 		magnitude := math.Sqrt(float64(sumOfSquares))
 		const epsilon = 1e-3
 		if math.Abs(magnitude-1.0) > epsilon {
-			err1 := errors.New(errors.EAREmbeddingNotNormalized, pgerror.New("embedding is not L2 normalized (violates ArcFace structure)"))
+			err1 := errors.New(errors.EAREmbeddingNotNormalized, pgerror.New("embedding is not L2 normalized"))
 			err1.Log()
 			return false, err1
 		}
