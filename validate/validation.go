@@ -3,8 +3,11 @@ package validate
 import (
 	"encoding/base64"
 	pgerror "errors"
+	"fmt"
 	"math"
 	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/GigaDesk/eardrum-interfaces/errors"
@@ -176,5 +179,94 @@ func ValidatePastDate(date time.Time) error {
 		err1.Log()
 		return err1
 	}
+	return nil
+}
+
+// ValidateOfflineTransactionID checks if the provided offline transaction ID
+// adheres to the `IMEI_MillisecondTimestamp` format, verifying the Luhn checksum
+// of the IMEI and the plausibility of the millisecond timestamp.
+func ValidateOfflineTransactionID(id string) error {
+	if strings.TrimSpace(id) == "" {
+		err1 := errors.New(errors.EARValidationInvalidOfflineTxId, pgerror.New("offline transaction ID cannot be empty"))
+		err1.Log()
+		return err1
+	}
+
+	parts := strings.Split(id, "_")
+	if len(parts) != 2 {
+		err1 := errors.New(errors.EARValidationInvalidOfflineTxId, pgerror.New("invalid offline transaction ID format: expected 'IMEI_Timestamp'"))
+		err1.Log()
+		return err1
+	}
+
+	imei := parts[0]
+	timestampStr := parts[1]
+
+	// 1. Validate IMEI format & Luhn checksum
+	if err := validateIMEI(imei); err != nil {
+		err1 := errors.New(errors.EARValidationInvalidIMEI, err)
+		err1.Log()
+		return err1
+	}
+
+	// 2. Validate Timestamp Structure (Must be 13 digits for millisecond Epoch)
+	if len(timestampStr) != 13 {
+		err1 := errors.New(errors.EARValidationInvalidUnixTimestamp, pgerror.New("invalid timestamp: must be a 13-digit millisecond Unix timestamp"))
+		err1.Log()
+		return err1
+	}
+
+	millis, err := strconv.ParseInt(timestampStr, 10, 64)
+	if err != nil {
+		err1 := errors.New(errors.EARValidationInvalidUnixTimestamp, fmt.Errorf("failed to parse numeric value: %w", err))
+		err1.Log()
+		return err1
+	}
+
+	// 3. Plausibility Check (Timestamp must not be in the future or prior to 2020)
+	const minTimestamp = 1577836800000 // 2020-01-01T00:00:00Z in milliseconds
+	nowMillis := time.Now().UnixMilli()
+
+	if millis < minTimestamp {
+		err1 := errors.New(errors.EARValidationInvalidUnixTimestamp, pgerror.New("invalid timestamp: date is too far in the past"))
+		err1.Log()
+		return err1
+	}
+	if millis > nowMillis+60000 { // Allow 1-minute buffer for minor client clock drift
+		err1 := errors.New(errors.EARValidationInvalidUnixTimestamp, pgerror.New("invalid timestamp: date cannot be in the future"))
+		err1.Log()
+		return err1
+	}
+
+	return nil
+}
+
+// validateIMEI checks if the IMEI is exactly 15 numeric digits and passes the Luhn checksum.
+func validateIMEI(imei string) error {
+	if len(imei) != 15 {
+		return pgerror.New("must be exactly 15 digits long")
+	}
+
+	var sum int
+	for i := 0; i < 15; i++ {
+		digit, err := strconv.Atoi(string(imei[i]))
+		if err != nil {
+			return pgerror.New("must contain only numeric digits")
+		}
+
+		// Double every second digit (at odd indices 1, 3, 5...)
+		if i%2 == 1 {
+			digit *= 2
+			if digit > 9 {
+				digit -= 9
+			}
+		}
+		sum += digit
+	}
+
+	if sum%10 != 0 {
+		return pgerror.New("failed Luhn checksum validation")
+	}
+
 	return nil
 }
